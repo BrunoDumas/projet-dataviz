@@ -33,12 +33,40 @@ function init(){
 
 function processData(error, data){
     if (error) throw error;
-    console.log(data.length);
-    console.log(data[0]);
+
+    /* Building directory tree */
+    var root = buildTree(data); // From file dataTools.js
+
+    displayTree(root);
 }
 
 /* Display functions */
+function displayTree(data) {
+    /*var treeView = g.append("g")
+        .classed("treeView", true);
 
+    treeView.selectAll("circle.treeNode")
+        .data([data])
+        .enter()
+        .append("circle")
+            .classed("treeNode", true)
+            .attr("cx", 10)
+            .attr("cy", overview.height / 2)
+            .attr("r", 10);
+    treeView.selectAll("text.treeNodeText")
+        .data([data])
+        .enter()
+        .append("text")
+            .classed("treeNodeText", true)
+            .text(function (d) {
+                return d.filename;
+            })
+            .attr("x", 10)
+            .attr("y", overview.height / 2 + 32)
+            .style("font-size", 20);
+*/
+
+}
 
 
 
