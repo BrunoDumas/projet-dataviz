@@ -1,6 +1,6 @@
 # projet-dataviz
 ## Details
-Visualisation d'une arborescence de fichiers
+Directory tree visualization
 
 Philippe poirier
 
