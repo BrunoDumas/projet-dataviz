@@ -1,14 +1,32 @@
-/* Display config */
-var margin = {top: 20, right: 20, bottom: 20, left: 20},
-    svg = d3.select("body").append("svg")
-        .attr("width", 960)
-        .attr("height", 500),
-    width = svg.attr("width") - margin.left - margin.right,
-    height = svg.attr("height") - margin.top - margin.bottom,
-    g = svg.append("g") // Whole canvas
-        .attr("transform", "translate(" + margin.left + "," + margin.top + ")"),
-    overview = {width: Math.min(width / 5, 300), height: height}, // Tree view
-    mainZone = {width: width - overview.width, height: height}; // Bubbles/Radial view
+/* Display setup */
+var displayArea = {width: 960, height: 500},
+	pathviewHeight = 50,
+	margin = {top: 20, right: 20, bottom: 20, left: 20},
+	body = d3.select("body"),
+	svgPathView = body.append("svg")
+        .attr("width", displayArea.width)
+        .attr("height", pathviewHeight),
+    svgOverview = body.append("svg")
+        .attr("width", displayArea.width / 2)
+        .attr("height", displayArea.height - pathviewHeight),
+	svgMainView = body.append("svg")
+        .attr("width", displayArea.width / 2)
+        .attr("height", displayArea.height - pathviewHeight),
+	pathview = { // File path view
+		width: svgPathView.attr("width") - margin.left - margin.right,
+		height: svgPathView.attr("height") - margin.top - margin.bottom,
+		g: svgPathView.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")"),
+	},
+    overview = { // Tree view
+		width: svgOverview.attr("width") - margin.left - margin.right,
+		height: svgOverview.attr("height") - margin.top - margin.bottom,
+		g: svgOverview.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")"),
+	},
+	mainview = { // Bubbles/Radial view
+		width: svgMainView.attr("width") - margin.left - margin.right,
+		height: svgMainView.attr("height") - margin.top - margin.bottom,
+		g: svgMainView.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")"),
+	};
 
 /* Format and conversion  functions */
 var displayDate = d3.timeFormat("%d/%m/%Y - %H:%M");
