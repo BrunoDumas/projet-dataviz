@@ -22,7 +22,7 @@ function buildTree(data){
                 d.children = [];
                 d.parent = prevNode;
 
-                // CLimb down
+                // Climb down
                 while(d.parent.depth != depth - 1){
                     d.parent = d.parent.parent;
                 }
