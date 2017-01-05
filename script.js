@@ -2,9 +2,9 @@
 var displayArea = {width: 960, height: 500},
 	pathviewHeight = 50,
 	margin = {top: 20, right: 20, bottom: 20, left: 20},
-	r = displayArea.width / 2,
+	r = displayArea.height * 0.9,
 	x = d3.scaleLinear().range([0, r]),
-    y = d3.scaleLinear().range([0, r]),
+  y = d3.scaleLinear().range([0, r]),
 	body = d3.select("body"),
 	svgPathView = body.append("svg")
         .attr("width", displayArea.width)
@@ -30,7 +30,8 @@ var displayArea = {width: 960, height: 500},
 		height: svgMainView.attr("height") - margin.top - margin.bottom,
 		g: svgMainView.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")"),
 	};
-	
+mainview.g.append("rect").attr("x", -margin.left).attr("y",  -margin.top).attr("width", mainview.width + margin.right + margin.left).attr("height", mainview.height + margin.top + margin.bottom).style("fill", "white").style("stroke", "black")
+
 var pack = d3.pack()
     .size([mainview.width - 2, mainview.height - 2])
     .padding(3);
@@ -70,18 +71,18 @@ function processData(error, data){
 
     /* Building directory tree */
     // var root = buildTree(data); // From file dataTools.js
-	
+
 	var data2 = [];
 	data.forEach(function(d){
 		if(d.depth < 2){
 			data2.push(d);
 		}
 	});
-	
+
     var root = stratify(data2)
 		.sum(function(d) { return d.size; })
 		.sort(function(a, b) { return b.size - a.size; });
-	
+
 	pack(root);
 
     displayTree(root);
@@ -99,7 +100,7 @@ function displayTree(root) {
 		.selectAll("g")
 		.data(root.descendants())
 		.enter().append("g")
-			.attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; })
+			//.attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; })
 			.attr("class", function(d) { return "node" + (!d.children ? " node--leaf" : d.depth ? "" : " node--root"); })
 			.each(function(d) { d.node = this; })
 			.on("mouseover", hovered(true))
@@ -108,6 +109,8 @@ function displayTree(root) {
 
 	node.append("circle")
 		.attr("id", function(d) { return "node-" + d.filename; })
+		.attr("cx", function(d) { return d.x; })
+		.attr("cy", function(d) { return d.y; })
 		.attr("r", function(d) { return d.r; })
 		.style("fill", function(d) { return mainview.color(d.depth); });
 
@@ -129,9 +132,9 @@ function displayTree(root) {
 
 	node.append("title")
 		.text(function(d) { return d.filename + "\n" + readableFileSize(d.size); });
-		
+
 	d3.select(window).on("click", function() { zoom(root); });
-	
+
     /*var treeView = g.append("g")
         .classed("treeView", true);
 
@@ -172,7 +175,7 @@ function zoom(d, i) {
       .attr("cy", function(d) { return y(d.y); })
       .attr("r", function(d) { return k * d.r; });
 
-  t.selectAll("text")
+  t.selectAll("title")
       .attr("x", function(d) { return x(d.x); })
       .attr("y", function(d) { return y(d.y); })
       .style("opacity", function(d) { return k * d.r > 20 ? 1 : 0; });
