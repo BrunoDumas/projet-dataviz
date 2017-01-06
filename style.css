@@ -12,10 +12,22 @@
 .hidden {
     display: none;
 }
-.node--hover circle {
-    stroke: darkgrey;
+
+.node circle {
+    stroke: black;
     stroke-width: 1.2px;
 }
+
+.node--hover circle {
+    stroke: lightgrey;
+    stroke-width: 1.2px;
+    cursor: hand;
+}
+
 .node {
     cursor: default;
+}
+
+g.pathElement {
+    cursor: hand;
 }
