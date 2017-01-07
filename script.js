@@ -27,12 +27,38 @@ var displayArea = {width: 500, height: 500},
 		width: svgMainView.attr("width") - margin.left - margin.right,
 		height: svgMainView.attr("height") - margin.top - margin.bottom,
 		g: svgMainView.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")"),
-		maxDepth: 2
+        colorTypes: ["Owner", "File extension", "Depth", "Date"],
+        colorType: "Owner",
+        colorFiletype: d3.scaleOrdinal(d3.schemeCategory20),
+        colorOwner: d3.scaleOrdinal(d3.schemeCategory10),
+        colorDepth: d3.scaleQuantile().range(['rgb(194,230,153)','rgb(120,198,121)','rgb(49,163,84)','rgb(0,104,55)']),
+        colorDate: d3.scaleLinear().range(['#ffffb2','#bd0026']),
+        color: function(node){
+            return function(){
+                switch(mainview.colorType){
+                    case "Owner":
+                        return mainview.colorOwner(node.data.owner);
+                        break;
+                    case "File extension":
+                        return mainview.colorFiletype("" + node.data.filetype + node.data.fileext);
+                        break;
+                    case "Date":
+                        return mainview.colorDate(node.data.timestamp);
+                        break;
+                    default:
+                        return mainview.colorDepth(node.depth);
+                        break;
+                }
+            }
+        },
+		maxDepth: 4,
+        viewFiles: true
 	},
 	r = Math.min(mainview.height, mainview.width),
 	x = d3.scaleLinear().range([0, r]),
 	y = d3.scaleLinear().range([0, r]),
-	prevnode = {depth: 0};
+    currNode,
+	prevNode = {depth: 0};
 
 mainview.g
 	.append("rect")
@@ -52,6 +78,26 @@ overview.g
 		.style("fill", "white")
 		.style("stroke", "black")
 
+var selectColorType = body
+    .append('select')
+        .attr('id','selectColorType')
+        .attr('class','select')
+        .style("top", margin.top)
+        .style("left", displayArea.width * 2 - 100)
+        .on('change', function() {
+            mainview.colorType = d3.select('#selectColorType').property('value');
+            refresh()
+        });
+
+selectColorType
+    .selectAll('option')
+    .data(mainview.colorTypes).enter()
+    .append('option')
+        .attr("id", function (d, i) { return i; })
+        .text(function (d) { return d; });
+
+
+
 var tooltip = d3.select('body').append('div')
 	.attr('class', 'hidden tooltip');
 
@@ -59,10 +105,6 @@ var tooltip = d3.select('body').append('div')
 var pack = d3.pack()
     .size([mainview.width - 2, mainview.height - 2])
     .padding(3);
-
-/*mainview.color = d3.scaleSequential(d3.interpolateMagma)
-    .domain([-4, 5]);*/
-mainview.color = d3.scaleOrdinal(d3.schemeCategory20);
 
 /* Format and conversion  functions */
 var displayDate = d3.timeFormat("%d/%m/%Y - %H:%M");
@@ -101,24 +143,45 @@ function processData(error, data){
 
 	var data2 = [];
 	var types = new Set();
+	var owners = new Set();
+    var maxDepth = 0;
+    var minDate = Number.MAX_SAFE_INTEGER;
+    var maxDate = 0;
 	data.forEach(function(d){
 		// Collect different file types + extensions
 		types.add("" + d.filetype + d.fileext);
-		if(d.depth <= mainview.maxDepth /*&& d.filetype == "d"*/){
+		owners.add(d.owner);
+        maxDepth = (d.depth > maxDepth) ? d.depth : maxDepth;
+        time = parseInt(d.timestamp)
+        maxDate = (time > maxDate) ? parseInt(time) : maxDate;
+        minDate = (time < minDate && time > 1451602800) ? time : minDate;
+
+		if(d.depth <= mainview.maxDepth && ((mainview.viewFiles) ? true : (d.filetype == "d"))){
 			data2.push(d);
 		}
 	});
-	data2.sort(function(a, b) { return b.size - a.size; });
 
+	data2.sort(function(a, b) { return b.size - a.size; });
     var root = stratify(data2)
 		.sum(function(d) { return d.size;})
 		.sort(function(a, b) { return b.size - a.size; });
 
 	pack(root);
-	mainview.color.range( Array.from(types)).unknown('rgb(125, 125, 125)');
+	mainview.colorFiletype.domain( Array.from(types)).unknown('rgb(200, 200, 200)');
+	mainview.colorOwner.domain( Array.from(owners)).unknown('rgb(200, 200, 200)');
+	mainview.colorDepth.domain([0, maxDepth]);
+	mainview.colorDate.domain([minDate, maxDate]);
 
+    currNode = root;
     displayMainView(root);
     displayPathView(root);
+}
+
+function getFileName(node){
+    var path = node.data.filename;
+    var name = path.split("/");
+    name = name[name.length - 1]
+    return name.length > 0 ? name : "/";
 }
 
 function hovered(hover) {
@@ -127,6 +190,11 @@ function hovered(hover) {
 
 		tooltip.classed('hidden', !hover);
 	};
+}
+
+/* Display functions */
+function refresh(){
+    currNode && zoom(currNode) && displayPathView(currNode);
 }
 
 function displayTooltip(d){
@@ -155,7 +223,6 @@ function displayTooltip(d){
 		"</table>");
 }
 
-/* Display functions */
 function displayMainView(root) {
 	var node = svgMainView.select("g")
 		.selectAll("g")
@@ -169,52 +236,63 @@ function displayMainView(root) {
 		.attr("cx", function(d) { return d.x; })
 		.attr("cy", function(d) { return d.y; })
 		.attr("r", function(d) { return d.r; })
-		.style("fill", function(d) { return mainview.color(""+d.data.filetype + d.data.fileext); })
+		.style("fill", function(d){ return mainview.color(d)() } )
+        .style("stroke-width", function(d){ return Math.sqrt(Math.max(5 - d.depth, 0)) })
 		.on("mouseover", hovered(true))
 		.on("mouseout", hovered(false))
 		.on("mousemove", displayTooltip)
 		.on("click", function(d) { return zoom(node == d ? node : d); });
 
-	node.append("text")
+	/*node.append("text")
 		.attr("x", function(d) { return d.x })
 		.attr("y", function(d) { return d.y })
-		.text(function(d) {
-			var path = d.data.filename;
-			var name = path.split("/");
-			name = name[name.length - 1]
-			return name.length > 0 ? name : "/";
+		.text(getFileName);
 		})
 		.attr("pointer-events", "none")
 		.style("text-anchor", "middle")
-		.classed("hidden", function(d){ return d.depth != mainview.maxDepth; });
+		.classed("hidden", function(d){ return !d.children });*/
 
 	//d3.select(window).on("click", function() { zoom(root); });
 	zoom(root);
 
 }
 
+function degreeOfInterest(node){
+    var distance = Math.abs(currNode.depth - node.depth);
+    var currNodeParent = currNode.data.filename.slice(0, currNode.data.filename.lastIndexOf("/"));
+    var nodeParent = node.data.filename.slice(0, node.data.filename.lastIndexOf("/"));
+    var inheritance = (currNodeParent.includes(nodeParent)) ? -2 : 2;
+    return distance + inheritance;
+}
+
 // Adapted from : http://mbostock.github.io/d3/talk/20111116/#10
-function zoom(d, i) {
-	var k = r / d.r / 2;
-	x.domain([d.x - d.r, d.x + d.r]);
-	y.domain([d.y - d.r, d.y + d.r]);
+function zoom(clickedNode, i) {
+	var k = r / clickedNode.r / 2;
+	x.domain([clickedNode.x - clickedNode.r, clickedNode.x + clickedNode.r]);
+	y.domain([clickedNode.y - clickedNode.r, clickedNode.y + clickedNode.r]);
+
+
+    currNode = clickedNode;
+    mainview.g.selectAll("circle")
+        .attr("class", function(d){ return (degreeOfInterest(d) >= 5) ? "hidden" : "" });
 
 	var t = mainview.g.transition()
-		.duration(500);
+		.duration(0);
 
 	t.selectAll("circle")
 		.attr("cx", function(d) { return x(d.x); })
 		.attr("cy", function(d) { return y(d.y); })
-		.attr("r", function(d) { return k * d.r; });
+		.attr("r", function(d) { return k * d.r; })
+		.style("fill", function(d){ return mainview.color(d)() } );
 
-	t.selectAll("text")
+	/*t.selectAll("text")
 		.attr("x", function(d) { return x(d.x); })
 		.attr("y", function(d) { return y(d.y); })
-		.style("opacity", function(d) { return k * d.r > 20 ? 1 : 0; });
+		.style("opacity", function(d) { return k * d.r > 20 ? 1 : 0; });*/
 
-	node = d;
+	node = clickedNode;
 	d3.event && d3.event.stopPropagation();
-	displayPathView(d)
+	displayPathView(clickedNode)
 }
 
 function getTextWidth(text, fontSize, fontFace) {
@@ -227,7 +305,7 @@ function getTextWidth(text, fontSize, fontFace) {
 
 function displayPathView(selectedNode) {
 	function polygon(d, i) {
-		var width = getTextWidth(d.data.filename, pathview.fontSize, "arial") + pathview.fontSize / 2;
+		var width = getTextWidth(getFileName(d), pathview.fontSize, "arial") + pathview.fontSize / 2;
 		var points = [];
 		points.push("10,0");
 		points.push(width + 10 + ",0");
@@ -235,7 +313,7 @@ function displayPathView(selectedNode) {
 		points.push(0 + "," + pathview.fontSize);
 		return points.join(" ");
 	}
-	//var directory = (selectedNode.depth >= prevnode.depth) ? selectedNode : prevnode;
+	//var directory = (selectedNode.depth >= prevNode.depth) ? selectedNode : prevNode;
 	var directory = selectedNode;
 	var nodes = [];
 	while(typeof directory != "undefined" && directory){
@@ -259,7 +337,7 @@ function displayPathView(selectedNode) {
 	enterNodes.append("polygon")
 		.classed("pathPoly", true)
 		.attr("points", polygon)
-		.style("fill", function(d){ return mainview.color("" + d.data.filetype + d.data.fileext) })
+		.style("fill", function(d){ return mainview.color(d)() } )
 		.attr("transform", "translate(-15," + -pathview.fontSize *0.55 + ")");
 
 	enterNodes.append("text")
@@ -270,25 +348,16 @@ function displayPathView(selectedNode) {
 		.attr("y", function(d, i){
 			return pathview.height + pathview.fontSize / 10;
 		})
-		.text(function(d) {
-			var path = d.data.filename;
-			var name = path.split("/");
-			name = name[name.length - 1]
-			return name.length > 0 ? name : "/";
-		});
+		.text(getFileName);
 
 	//var allNodes = pathview.g.selectAll(".pathPoly");
 	var allTexts = trunk.select(".pathText");
 	allTexts
 		.attr("text-anchor", "left")
-		.text(function(d) {
-			var path = d.data.filename;
-			var name = path.split("/");
-			name = name[name.length - 1]
-			return name.length > 0 ? name : "/";
-		});
+		.text(getFileName);
 	trunk.select(".pathPoly")
-		.attr("points", polygon);
+		.attr("points", polygon)
+		.style("fill", function(d){ return mainview.color(d)() } );
 
 	/*trunk.attr("transform", function(d, i) {
 		var offset = 0;
@@ -303,13 +372,13 @@ function displayPathView(selectedNode) {
 		.selectAll("g").attr("transform", function(d, i) {
 		var offset = 0;
 		for(var j = i - 1; j >= 0; j--){
-			offset += pathview.fontSize * 0.55 + getTextWidth(nodes[j].data.filename, pathview.fontSize, "arial");
+			offset += pathview.fontSize * 0.55 + getTextWidth(getFileName(nodes[j]), pathview.fontSize, "arial");
 		}
 		//var width = getTextWidth(trunk.data[i - 1].data.filename, 20, "arial") + 15;
     	return "translate(" + offset + ", 0)";
  	});
 
-	prevnode = selectedNode;
+	prevNode = selectedNode;
 }
 
 init();

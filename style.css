@@ -19,7 +19,7 @@
 }
 
 .node--hover circle {
-    stroke: lightgrey;
+    stroke: darkgrey;
     stroke-width: 1.2px;
     cursor: hand;
 }
@@ -30,4 +30,12 @@
 
 g.pathElement {
     cursor: hand;
+}
+
+g.pathElement:hover {
+    opacity: 0.9;
+}
+
+#selectColorType {
+    position: absolute;
 }
