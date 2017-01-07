@@ -1,7 +1,7 @@
 /* Display setup */
-var displayArea = {width: 500, height: 500},
-	pathviewHeight = 50,
+var pathviewHeight = 50,
 	margin = {top: 20, right: 20, bottom: 20, left: 20},
+	displayArea = getWindowSize(pathviewHeight, margin),
 	body = d3.select("body"),
 	svgPathView = body.append("svg")
         .attr("width", displayArea.width * 2)
@@ -31,7 +31,7 @@ var displayArea = {width: 500, height: 500},
         colorType: "Owner",
         colorFiletype: d3.scaleOrdinal(d3.schemeCategory20),
         colorOwner: d3.scaleOrdinal(d3.schemeCategory10),
-        colorDepth: d3.scaleQuantile().range(['rgb(194,230,153)','rgb(120,198,121)','rgb(49,163,84)','rgb(0,104,55)']),
+        colorDepth: d3.scaleLinear().range(['#d9f0a3','#004529']),
         colorDate: d3.scaleLinear().range(['#ffffb2','#bd0026']),
         color: function(node){
             return function(){
@@ -46,7 +46,7 @@ var displayArea = {width: 500, height: 500},
                         return mainview.colorDate(node.data.timestamp);
                         break;
                     default:
-                        return mainview.colorDepth(node.depth);
+                        return mainview.colorDepth(node.depth - (currNode?currNode.depth:1) + 1);
                         break;
                 }
             }
@@ -116,6 +116,35 @@ var stratify = d3.stratify()
 		return (parent.length > 0 ? parent : (d.filename.length == 1 ? null : "/"));
 	});
 
+function getWindowSize(pathViewSize, margin){
+	var w = window,
+	    d = document,
+	    e = d.documentElement,
+	    g = d.getElementsByTagName('body')[0],
+	    x = w.innerWidth || e.clientWidth || g.clientWidth,
+	    y = w.innerHeight|| e.clientHeight|| g.clientHeight;
+
+	var maxW = Math.min(x / 2 - margin.left, y - pathViewSize - margin.top)
+
+	return {width: maxW, height: maxW}
+}
+
+function downloadVariableAsFile(variable){
+	/*var hiddenElement = document.createElement('a');
+
+	var root = variable;
+	while(variable.children){
+
+	}
+
+	console.log(variable)
+	hiddenElement.href = 'data:attachment/text,' + encodeURI(JSON.stringify(variable));
+	hiddenElement.target = '_blank';
+	hiddenElement.download = 'variable.json';
+	hiddenElement.click();
+	delete hiddenElement;*/
+}
+
 function readableFileSize(aSize){ // http://blog.niap3d.com/fr/5,10,news-16-convertir-des-octets-en-javascript.html
 	aSize = Math.abs(parseInt(aSize, 10));
 	var def = [[1, 'octets'], [1024, 'ko'], [1024*1024, 'Mo'], [1024*1024*1024, 'Go'], [1024*1024*1024*1024, 'To']];
@@ -167,9 +196,12 @@ function processData(error, data){
 		.sort(function(a, b) { return b.size - a.size; });
 
 	pack(root);
+
+	downloadVariableAsFile(root);
+
 	mainview.colorFiletype.domain( Array.from(types)).unknown('rgb(200, 200, 200)');
 	mainview.colorOwner.domain( Array.from(owners)).unknown('rgb(200, 200, 200)');
-	mainview.colorDepth.domain([0, maxDepth]);
+	mainview.colorDepth.domain([0, 5]);
 	mainview.colorDate.domain([minDate, maxDate]);
 
     currNode = root;
@@ -267,6 +299,7 @@ function degreeOfInterest(node){
 
 // Adapted from : http://mbostock.github.io/d3/talk/20111116/#10
 function zoom(clickedNode, i) {
+	if(currNode.id == clickedNode.id && i) return;
 	var k = r / clickedNode.r / 2;
 	x.domain([clickedNode.x - clickedNode.r, clickedNode.x + clickedNode.r]);
 	y.domain([clickedNode.y - clickedNode.r, clickedNode.y + clickedNode.r]);
@@ -359,23 +392,14 @@ function displayPathView(selectedNode) {
 		.attr("points", polygon)
 		.style("fill", function(d){ return mainview.color(d)() } );
 
-	/*trunk.attr("transform", function(d, i) {
-		var offset = 0;
-		for(var j = i - 1; j >= 0; j--){
-			offset += 15 + getTextWidth(nodes[j].data.filename, pathview.fontSize, "arial");
-		}
-		//var width = getTextWidth(trunk.data[i - 1].data.filename, 20, "arial") + 15;
-    	return "translate(" + offset + ", 0)";
- 	});*/
-
 	pathview.g
 		.selectAll("g").attr("transform", function(d, i) {
 		var offset = 0;
 		for(var j = i - 1; j >= 0; j--){
-			offset += pathview.fontSize * 0.55 + getTextWidth(getFileName(nodes[j]), pathview.fontSize, "arial");
+			offset += pathview.fontSize * 0.6 + getTextWidth(getFileName(nodes[j]), pathview.fontSize, "arial");
 		}
 		//var width = getTextWidth(trunk.data[i - 1].data.filename, 20, "arial") + 15;
-    	return "translate(" + offset + ", 0)";
+    	return "translate(" + offset + ", " + (pathview.fontSize * 0.15) + ")";
  	});
 
 	prevNode = selectedNode;

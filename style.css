@@ -39,3 +39,8 @@ g.pathElement:hover {
 #selectColorType {
     position: absolute;
 }
+
+.pathPoly {
+    stroke: black;
+    stroke-width: 2px;
+}
