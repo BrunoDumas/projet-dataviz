@@ -34,6 +34,59 @@ var pathviewHeight = 50,
 		      d.children = null
 		    }
 		},
+		searchTree: function(obj,search,path){
+		if(obj.data.filename === search){ //if search is found return, add the object to the path and return it
+			path.push(obj.data);
+			return path;
+		}
+		else if(obj.children || obj._children){ //if children are collapsed d3 object will have them instantiated as _children
+			var children = (obj.children) ? obj.children : obj._children;
+			for(var i=0;i<children.length;i++){
+				path.push(obj);// we assume this path is the right one
+				var found = overview.searchTree(children[i],search,path);
+				if(found){// we were right, this should return the bubbled-up path from the first if statement
+					return found;
+				}
+				else{//we were wrong, remove this parent from the path and continue iterating
+					path.pop();
+				}
+			}
+		}
+		else{//not the right object, return false so it will continue to iterate in the loop
+			return false;
+		}
+	},
+
+	extract_select2_data: function(node,leaves,index){
+	        if (node.children){
+	            for(var i = 0;i<node.children.length;i++){
+	                index = overview.extract_select2_data(node.children[i],leaves,index)[0];
+	            }
+	        }
+	        else {
+	            leaves.push({id:++index,text:node.filename});
+	        }
+	        return [index,leaves];
+	},
+		collapse: function(d){
+			if(d.children) {
+		      d._children = d.children
+		      d._children.forEach(overview.collapse)
+		      d.children = null
+		    }
+		},
+		openPaths: function(paths){
+			for(var i =0;i<paths.length;i++){
+			if(paths[i].id !== "/"){//i.e. not root
+				paths[i].class = 'found';
+				if(paths[i]._children){ //if children are hidden: open them, otherwise: don't do anything
+					paths[i].children = paths[i]._children;
+	    			paths[i]._children = null;
+				}
+				overview.update(paths[i]);
+			}
+		}
+	},
 		update: function(source){
 			var nodes = overview.tree(overview.root).descendants(),
 				links = overview.tree(overview.root).descendants().slice(1);
@@ -77,10 +130,11 @@ var pathviewHeight = 50,
 				return "translate(" + d.y + "," + d.x + ")";
 			});
 
-			nodeUpdate.select('circle.node')
+				nodeUpdate.select('circle.node')
 				.attr('r', 10)
 				.style("fill", function(d) {
-					return d._children ? "lightsteelblue" : "#f00";
+					if(d.class === "found"){return "blue"}
+					else{return d._children ? "lightsteelblue" : "#f00";}
 				})
 				.attr('cursor', 'pointer');
 
@@ -114,7 +168,12 @@ var pathviewHeight = 50,
 
 		  	linkUpdate.transition()
 		        .duration(overview.duration)
-		        .attr('d', function(d){ return diagonal(d, d.parent) });
+		        .attr('d', function(d){ return diagonal(d, d.parent) })
+			.style("stroke",function(d){
+				if(d.class==="found"){
+					return "blue";
+				}
+			});
 
 		  	var linkExit = link.exit().transition()
 		        .duration(overview.duration)
@@ -354,8 +413,13 @@ function processData(error, data, file_extensions){
 		.sort(function(a, b) { return b.size - a.size; });
 
 	overview.root = overviewRoot;
+	select2_data = overview.extract_select2_data(data,[],0)[1];
 	overview.root.children.forEach(overview.collapse);
 	overview.update(overview.root);
+	var paths = overview.searchTree(overview.root,"/media/pi",[]);
+		if(typeof(paths) !== "undefined"){
+			overview.openPaths(paths);
+		}
 
 	/* Main view (pack layout) */
 	var root = stratify(data)
