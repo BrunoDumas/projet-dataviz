@@ -8,10 +8,12 @@ var pathviewHeight = 50,
         .attr("height", pathviewHeight),
     svgOverview = body.append("svg")
         .attr("width", displayArea.width)
-        .attr("height", displayArea.height),
+        .attr("height", displayArea.height)
+		.classed("bordered", true),
 	svgMainView = body.append("svg")
         .attr("width", displayArea.width)
-        .attr("height", displayArea.height),
+        .attr("height", displayArea.height)
+		.classed("bordered", true),
 	pathview = { // File path view
 		width: svgPathView.attr("width") - margin.left - margin.right,
 		height: svgPathView.attr("height") - margin.top - margin.bottom,
@@ -21,7 +23,137 @@ var pathviewHeight = 50,
     overview = { // Tree view
 		width: svgOverview.attr("width") - margin.left - margin.right,
 		height: svgOverview.attr("height") - margin.top - margin.bottom,
-		g: svgOverview.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")")
+		g: svgOverview.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")"),
+		transform: d3.zoomIdentity,
+		i: 0,
+	    duration: 750,
+		collapse: function(d){
+			if(d.children) {
+		      d._children = d.children
+		      d._children.forEach(overview.collapse)
+		      d.children = null
+		    }
+		},
+		update: function(source){
+			var nodes = overview.tree(overview.root).descendants(),
+				links = overview.tree(overview.root).descendants().slice(1);
+
+			nodes.forEach(function(d){ d.y = d.depth * 180});
+
+			var node = overview.g.selectAll("g.node")
+				.data(nodes, function(d) {return d.id || (d.id = ++i); });
+
+		  	nodes.forEach(function(d){
+		      d.x0 = d.x;
+		      d.y0 = d.y;
+		    });
+
+
+			var nodeEnter = node.enter().append("g")
+				.attr("class", 'node')
+				.attr("transform", function(d) { return "translate(" + source.y0 + "," + source.x0 + ")"; })
+				.on('click', click);
+
+		    nodeEnter.append("circle")
+			  	.attr('class', 'node')
+			    .attr("r", 1e-6)
+			  	.style("fill", function(d) {
+		            return d._children ? "lightsteelblue" : "#777";
+		        });
+
+		    nodeEnter.append("text")
+		        .attr("dy", ".35em")
+		        .attr("x", function(d) { return d.children ? -13 : 13; })
+		        .style("text-anchor", function(d) { return d.children ? "end" : "start"; })
+		        .text(function(d) {
+					return d.id.substring(d.id.lastIndexOf("/") + 1);
+				});
+
+		  	var nodeUpdate = nodeEnter.merge(node);
+
+			nodeUpdate.transition()
+			.duration(overview.duration)
+			.attr("transform", function(d) {
+				return "translate(" + d.y + "," + d.x + ")";
+			});
+
+			nodeUpdate.select('circle.node')
+				.attr('r', 10)
+				.style("fill", function(d) {
+					return d._children ? "lightsteelblue" : "#f00";
+				})
+				.attr('cursor', 'pointer');
+
+
+
+		  	var nodeExit = node.exit().transition()
+		        .duration(overview.duration)
+		        .attr("transform", function(d) {
+		            return "translate(" + source.y + "," + source.x + ")";
+		        })
+		        .remove();
+
+		  	nodeExit.select('circle')
+		      .attr('r', 1e-6);
+
+		  	nodeExit.select('text')
+		      .style('fill-opacity', 1e-6);
+
+
+		  	var link = overview.g.selectAll("path.link")
+		      .data(links, function(d) { return d.id; });
+
+		  	var linkEnter = link.enter().insert('path', "g")
+		        .attr("class", "link")
+		        .attr("d", function(d){
+		          var o = {x: source.x0, y: source.y0}
+		          return diagonal(o, o)
+		        });
+
+		  	var linkUpdate = linkEnter.merge(link);
+
+		  	linkUpdate.transition()
+		        .duration(overview.duration)
+		        .attr('d', function(d){ return diagonal(d, d.parent) });
+
+		  	var linkExit = link.exit().transition()
+		        .duration(overview.duration)
+		        .attr('d', function(d) {
+		        	var o = {x: source.x, y: source.y}
+		        	return diagonal(o, o)
+		        })
+		        .remove();
+
+
+		    function diagonal(s, d) {
+		    	path = `M ${s.y} ${s.x}
+		              C ${(s.y + d.y) / 2} ${s.x},
+		                ${(s.y + d.y) / 2} ${d.x},
+		                ${d.y} ${d.x}`;
+
+		    	return path;
+		    }
+
+		    function click(d) {
+		    	if (d.children) {
+		        	d._children = d.children;
+		        	d.children = null;
+		        } else {
+		        	d.children = d._children;
+		        	d._children = null;
+		        }
+		    	overview.update(d);
+		    }
+
+
+			svgOverview.call(d3.zoom()
+		    	.scaleExtent([1 / 2, 8])
+		    	.on("zoom", zoomed));
+
+			function zoomed() {
+		  		overview.g.attr("transform", d3.event.transform);
+		  	}
+		}
 	},
 	mainview = { // Bubbles/Radial view
 		width: svgMainView.attr("width") - margin.left - margin.right,
@@ -76,14 +208,14 @@ var pathviewHeight = 50,
     currNode,
 	prevNode = {depth: 0};
 
-mainview.g
+/*mainview.g
 	.append("rect")
 		.attr("x", -margin.left)
 		.attr("y",  -margin.top)
 		.attr("width", mainview.width + margin.right + margin.left)
 		.attr("height", mainview.height + margin.top + margin.bottom)
 		.style("fill", "white")
-		.style("stroke", "black")
+		.style("stroke", "black");
 
 overview.g
 	.append("rect")
@@ -92,7 +224,9 @@ overview.g
 		.attr("width", overview.width + margin.right + margin.left)
 		.attr("height", overview.height + margin.top + margin.bottom)
 		.style("fill", "white")
-		.style("stroke", "black")
+		.style("stroke", "black");*/
+
+overview.tree = d3.tree().size([overview.height, overview.width]);
 
 var selectColorType = body
     .append('select')
@@ -157,7 +291,7 @@ function getWindowSize(pathViewSize, margin){
 	    x = w.innerWidth || e.clientWidth || g.clientWidth,
 	    y = w.innerHeight|| e.clientHeight|| g.clientHeight;
 
-	var maxW = Math.min(x / 2 - margin.left, y - pathViewSize - margin.top)
+	var maxW = Math.min(x / 2 - margin.left - margin.right - 2, y - pathViewSize - margin.top)
 
 	return {width: maxW, height: maxW}
 }
@@ -219,11 +353,23 @@ function processData(error, data, file_extensions){
 	});
 
 	data2.sort(function(a, b) { return b.size - a.size; });
-    var root = stratify(data2)
+
+	/* Overview (treeview) */
+    var overviewRoot = stratify(data)
+		.sum(function(d) { return d.size;})
+		.sort(function(a, b) { return b.size - a.size; });
+
+	overview.root = overviewRoot;
+	overview.root.children.forEach(overview.collapse);
+	overview.update(overview.root);
+
+	/* Main view (pack layout) */
+	var root = stratify(data2)
 		.sum(function(d) { return d.size;})
 		.sort(function(a, b) { return b.size - a.size; });
 
 	pack(root);
+
 
 	// downloadVariableAsFile(root);
 

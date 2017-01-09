@@ -43,10 +43,16 @@ g.pathElement:hover {
 #legendPicto {
     position: absolute;
     border: black thin solid;
-    border-radius: 5px 5px 5px 5px;
+    border-radius: 5px;
 }
 
 .pathPoly {
     stroke: black;
     stroke-width: 2px;
+}
+
+svg.bordered {
+    border: black solid 1.5px;
+    border-radius: 5px;
+    margin-right: 2px;
 }
