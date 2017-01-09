@@ -199,6 +199,19 @@ var pathviewHeight = 50,
                 }
             }
         },
+		collapse: function(startingDepth){
+			return function(node){
+				if(node.children) {
+					if(node.depth - startingDepth <= mainview.maxDepth) {
+						node._children = node.children;
+						node._children.forEach(mainview.collapse);
+						node.children = null;
+					} else {
+						node.children.forEach(mainview.collapse(startingDepth));
+					}
+			    }
+			};
+		},
 		maxDepth: 4,
         viewFiles: true
 	},
@@ -207,24 +220,6 @@ var pathviewHeight = 50,
 	y = d3.scaleLinear().range([0, r]),
     currNode,
 	prevNode = {depth: 0};
-
-/*mainview.g
-	.append("rect")
-		.attr("x", -margin.left)
-		.attr("y",  -margin.top)
-		.attr("width", mainview.width + margin.right + margin.left)
-		.attr("height", mainview.height + margin.top + margin.bottom)
-		.style("fill", "white")
-		.style("stroke", "black");
-
-overview.g
-	.append("rect")
-		.attr("x", -margin.left)
-		.attr("y",  -margin.top)
-		.attr("width", overview.width + margin.right + margin.left)
-		.attr("height", overview.height + margin.top + margin.bottom)
-		.style("fill", "white")
-		.style("stroke", "black");*/
 
 overview.tree = d3.tree().size([overview.height, overview.width]);
 
@@ -236,7 +231,7 @@ var selectColorType = body
         .style("left", displayArea.width * 2 - 180)
         .on('change', function() {
             mainview.colorType = d3.select('#selectColorType').property('value');
-            refresh();
+            refreshColors();
         });
 
 selectColorType
@@ -330,9 +325,8 @@ function processData(error, data, file_extensions){
     if (error) throw error;
 
     /* Building directory tree */
-    // var root = buildTree(data); // From file dataTools.js
 
-	var data2 = [];
+	//var data2 = [];
 	var types = new Set();
 	var owners = new Set();
     var maxDepth = 0;
@@ -347,14 +341,14 @@ function processData(error, data, file_extensions){
         maxDate = (time > maxDate) ? parseInt(time) : maxDate;
         minDate = (time < minDate && time > 1451602800) ? time : minDate;
 
-		if(d.depth <= mainview.maxDepth && ((mainview.viewFiles) ? true : (d.filetype == "d"))){
+		/*if(d.depth <= mainview.maxDepth && (mainview.viewFiles || (d.filetype == "d"))){
 			data2.push(d);
-		}
+		}*/
 	});
 
-	data2.sort(function(a, b) { return b.size - a.size; });
+	data.sort(function(a, b) { return b.size - a.size; });
 
-	/* Overview (treeview) */
+	/* Treeview */
     var overviewRoot = stratify(data)
 		.sum(function(d) { return d.size;})
 		.sort(function(a, b) { return b.size - a.size; });
@@ -364,10 +358,10 @@ function processData(error, data, file_extensions){
 	overview.update(overview.root);
 
 	/* Main view (pack layout) */
-	var root = stratify(data2)
+	var root = stratify(data)
 		.sum(function(d) { return d.size;})
 		.sort(function(a, b) { return b.size - a.size; });
-
+	root.children.forEach(mainview.collapse(0));
 	pack(root);
 
 
@@ -406,6 +400,21 @@ function refresh(){
     currNode
 		&& zoom(currNode)
 		&& displayPathView(currNode);
+	legendTooltip.select("svg").remove();
+	initLegendToolTip();
+}
+
+function refreshColors(){
+	// Change colors of pathview ...
+	pathview.g
+		.selectAll("g").select(".pathPoly")
+			.style("fill", function(d){ return mainview.color(d)() } );
+
+	// ... and mainview
+	mainview.g.selectAll("circle")
+		.style("fill", function(d){ return mainview.color(d)() } );
+
+	// Change legend colors
 	legendTooltip.select("svg").remove();
 	initLegendToolTip();
 }
@@ -513,7 +522,7 @@ function displayLegendTooltip(){
 }
 
 function displayMainView(root) {
-	var node = svgMainView.select("g")
+	var node = mainview.g
 		.selectAll("g")
 		.data(root.descendants())
 		.enter().append("g")
