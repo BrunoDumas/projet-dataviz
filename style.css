@@ -56,3 +56,10 @@ svg.bordered {
     border-radius: 5px;
     margin-right: 2px;
 }
+
+.link {
+  fill: none;
+  stroke: #555;
+  stroke-opacity: 0.4;
+  stroke-width: 1.5px;
+}

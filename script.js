@@ -188,7 +188,7 @@ var pathviewHeight = 50,
                         return mainview.colorOwner(node.data.owner);
                         break;
                     case "File extension":
-                        return mainview.colorFiletype("" + node.data.filetype + node.data.fileext);
+                        return mainview.colorFiletype(node.data.fileext);
                         break;
                     case "Date":
                         return mainview.colorDate(node.data.timestamp);
@@ -202,7 +202,7 @@ var pathviewHeight = 50,
 		collapse: function(startingDepth){
 			return function(node){
 				if(node.children) {
-					if(node.depth - startingDepth <= mainview.maxDepth) {
+					if(node.depth - startingDepth >= mainview.maxDepth) {
 						node._children = node.children;
 						node._children.forEach(mainview.collapse);
 						node.children = null;
@@ -221,7 +221,7 @@ var pathviewHeight = 50,
     currNode,
 	prevNode = {depth: 0};
 
-overview.tree = d3.tree().size([overview.height, overview.width]);
+overview.tree = d3.tree().size([overview.width, overview.height]);
 
 var selectColorType = body
     .append('select')
@@ -405,18 +405,20 @@ function refresh(){
 }
 
 function refreshColors(){
-	// Change colors of pathview ...
-	pathview.g
-		.selectAll("g").select(".pathPoly")
+	setTimeout(function(){
+		// Change colors of pathview ...
+		pathview.g
+			.selectAll("g").select(".pathPoly")
+				.style("fill", function(d){ return mainview.color(d)() } );
+
+		// ... and mainview
+		mainview.g.selectAll("circle")
 			.style("fill", function(d){ return mainview.color(d)() } );
 
-	// ... and mainview
-	mainview.g.selectAll("circle")
-		.style("fill", function(d){ return mainview.color(d)() } );
-
-	// Change legend colors
-	legendTooltip.select("svg").remove();
-	initLegendToolTip();
+		// Change legend colors
+		legendTooltip.select("svg").remove();
+		initLegendToolTip();
+	}, 1);
 }
 
 function displayTooltip(d){
