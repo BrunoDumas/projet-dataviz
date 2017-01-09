@@ -204,13 +204,53 @@ var pathviewHeight = 50,
 				if(node.children) {
 					if(node.depth - startingDepth >= mainview.maxDepth) {
 						node._children = node.children;
-						node._children.forEach(mainview.collapse);
+						node._children.forEach(mainview.collapse(startingDepth));
 						node.children = null;
 					} else {
 						node.children.forEach(mainview.collapse(startingDepth));
 					}
 			    }
 			};
+		},
+		unCollapse: function(startingDepth){
+			return function(node){
+				if(node._children) {
+					if(node.depth - startingDepth >= mainview.maxDepth) {
+						node.children = node._children;
+						node.children.forEach(mainview.unCollapse(startingDepth));
+						node._children = null;
+					}
+			    }
+			};
+		},
+		processPack: function(node){
+			function shift(n, amount){
+				n.x -= amount.x;
+				n.y -= amount.y;
+				if(n.children) {
+					n.children.forEach(function(n0){shift(n0, amount)});
+				}
+			}
+
+			if(node.children) {
+				node.children.forEach(mainview.processPack);
+			} else {
+				if(node._children){
+					node.children = node._children;
+					node._children = null;
+
+					node.children.forEach(mainview.unCollapse(node.depth));
+
+					var prevPos = {r: node.r, x: node.x, y: node.y};
+					var packThis = d3.pack()
+					    .size([node.r * 2, node.r * 2])
+					    .padding(3);
+					packThis(node);
+					node.r = prevPos.r;
+					var prevPos = {x: node.x - prevPos.x, y: node.y - prevPos.y};
+					shift(node, prevPos);
+				}
+			}
 		},
 		maxDepth: 4,
         viewFiles: true
@@ -378,6 +418,16 @@ function processData(error, data, file_extensions){
 	initLegendToolTip();
     displayMainView(root);
     displayPathView(root);
+	console.log(root)
+	setTimeout(function(){
+		var firstCollapsedNode = root.children[3].children[0].children[0].children[0];
+		console.log(firstCollapsedNode.x + ", " + firstCollapsedNode.y + ", r= " + firstCollapsedNode.r)
+		console.log(firstCollapsedNode)
+		mainview.processPack(firstCollapsedNode)
+		displayMainView(root);
+		var firstCollapsedNode = root.children[3].children[0].children[0].children[0];
+		console.log(firstCollapsedNode.x + ", " + firstCollapsedNode.y + ", r= " + firstCollapsedNode.r)
+	}, 1)
 }
 
 function getFileName(node){
@@ -531,13 +581,14 @@ function displayMainView(root) {
 			.attr("class", function(d) { return "node" + (!d.children ? " node--leaf" : d.depth ? "" : " node--root"); })
 			.each(function(d) { d.node = this; });
 
+	console.log(node)
 	node.append("circle")
 		.attr("id", function(d) { return "node-" + d.data.filename; })
 		.attr("cx", function(d) { return d.x; })
 		.attr("cy", function(d) { return d.y; })
 		.attr("r", function(d) { return d.r; })
 		.style("fill", function(d){ return mainview.color(d)() } )
-        .style("stroke-width", function(d){ return Math.sqrt(Math.max(5 - d.depth, 0)) })
+        .style("stroke-width", function(d){ return Math.sqrt(Math.max(5 - d.depth, 0.5)) })
 		.on("mouseover", hovered(true))
 		.on("mouseout", hovered(false))
 		.on("mousemove", displayTooltip)
