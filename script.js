@@ -31,8 +31,24 @@ var pathviewHeight = 50,
         colorType: "Owner",
         colorFiletype: d3.scaleOrdinal(d3.schemeCategory20),
         colorOwner: d3.scaleOrdinal(d3.schemeCategory10),
-        colorDepth: d3.scaleLinear().range(['#d9f0a3','#004529']),
-        colorDate: d3.scaleLinear().range(['#ffffb2','#bd0026']),
+        colorDepth: d3.scaleQuantile().range(['#ffffe5','#d9f0a3','#78c679','#238443','#004529']),
+        colorDate: d3.scaleQuantile().range(['#fee0d2','#fcbba1','#fc9272','#fb6a4a','#ef3b2c','#cb181d','#a50f15']),
+		colorFct: function() {
+			switch(mainview.colorType){
+				case "Owner":
+					return mainview.colorOwner;
+					break;
+				case "File extension":
+					return mainview.colorFiletype;
+					break;
+				case "Date":
+					return mainview.colorDate;
+					break;
+				default:
+					return mainview.colorDepth;
+					break;
+			}
+		},
         color: function(node){
             return function(){
                 switch(mainview.colorType){
@@ -82,11 +98,11 @@ var selectColorType = body
     .append('select')
         .attr('id','selectColorType')
         .attr('class','select')
-        .style("top", margin.top)
-        .style("left", displayArea.width * 2 - 100)
+        .style("top", margin.top + 6)
+        .style("left", displayArea.width * 2 - 180)
         .on('change', function() {
             mainview.colorType = d3.select('#selectColorType').property('value');
-            refresh()
+            refresh();
         });
 
 selectColorType
@@ -96,11 +112,27 @@ selectColorType
         .attr("id", function (d, i) { return i; })
         .text(function (d) { return d; });
 
+var legendPicto = d3.select('#legendPicto')
+        .attr('class','legend_picto')
+		.attr('width', 64)
+		.attr('height', 32)
+        .style("top", margin.top)
+        .style("left", displayArea.width * 2 - 64)
+        .on('mouseover', function() {
+            displayLegendTooltip();
+        })
+		.on('mouseout', function() {
+            legendTooltip.classed('hidden', true);
+        });
 
 
 var tooltip = d3.select('body').append('div')
 	.attr('class', 'hidden tooltip');
 
+var legendTooltip = d3.select('body').append('div')
+	.attr('class', 'hidden tooltip legend')
+	.style("top", margin.top + 36)
+	.style("left", displayArea.width * 2 - 100 - margin.right);
 
 var pack = d3.pack()
     .size([mainview.width - 2, mainview.height - 2])
@@ -108,6 +140,7 @@ var pack = d3.pack()
 
 /* Format and conversion  functions */
 var displayDate = d3.timeFormat("%d/%m/%Y - %H:%M");
+var displayDateNoHour = d3.timeFormat("%d/%m/%Y");
 var fileSizeFormat = d3.format(",.1f");
 var stratify = d3.stratify()
 	.id(function(d){ return d.filename; })
@@ -130,19 +163,13 @@ function getWindowSize(pathViewSize, margin){
 }
 
 function downloadVariableAsFile(variable){
-	/*var hiddenElement = document.createElement('a');
+	var hiddenElement = document.createElement('a');
 
-	var root = variable;
-	while(variable.children){
-
-	}
-
-	console.log(variable)
-	hiddenElement.href = 'data:attachment/text,' + encodeURI(JSON.stringify(variable));
+	hiddenElement.href = 'data:attachment/text,' + encodeURI(variable);
 	hiddenElement.target = '_blank';
 	hiddenElement.download = 'variable.json';
 	hiddenElement.click();
-	delete hiddenElement;*/
+	delete hiddenElement;
 }
 
 function readableFileSize(aSize){ // http://blog.niap3d.com/fr/5,10,news-16-convertir-des-octets-en-javascript.html
@@ -160,11 +187,12 @@ function readableFileSize(aSize){ // http://blog.niap3d.com/fr/5,10,news-16-conv
 function init(){
     d3.queue()
     	.defer(d3.csv, "./outputfile.csv")
+    	.defer(d3.csv, "./file_extensions.csv")
     	.await(processData);
 
 }
 
-function processData(error, data){
+function processData(error, data, file_extensions){
     if (error) throw error;
 
     /* Building directory tree */
@@ -197,14 +225,17 @@ function processData(error, data){
 
 	pack(root);
 
-	downloadVariableAsFile(root);
+	// downloadVariableAsFile(root);
 
-	mainview.colorFiletype.domain( Array.from(types)).unknown('rgb(200, 200, 200)');
-	mainview.colorOwner.domain( Array.from(owners)).unknown('rgb(200, 200, 200)');
+	mainview.colorFiletype.domain(file_extensions.map(function(line){ return line.extension; })).unknown('rgb(200, 200, 200)');
+	// mainview.colorFiletype.domain( Array.from(types)).unknown('rgb(200, 200, 200)');
+	mainview.colorOwner.domain(Array.from(owners)).unknown('rgb(200, 200, 200)');
 	mainview.colorDepth.domain([0, 5]);
 	mainview.colorDate.domain([minDate, maxDate]);
 
     currNode = root;
+
+	initLegendToolTip();
     displayMainView(root);
     displayPathView(root);
 }
@@ -226,7 +257,11 @@ function hovered(hover) {
 
 /* Display functions */
 function refresh(){
-    currNode && zoom(currNode) && displayPathView(currNode);
+    currNode
+		&& zoom(currNode)
+		&& displayPathView(currNode);
+	legendTooltip.select("svg").remove();
+	initLegendToolTip();
 }
 
 function displayTooltip(d){
@@ -253,6 +288,82 @@ function displayTooltip(d){
 				"<td>" + displayDate(d.data.timestamp * 1000) + "</td>" +
 			"</tr>" +
 		"</table>");
+}
+
+function initLegendToolTip() {
+	legendTooltip.append("svg")
+	    .attr("width", 100)
+	    .attr("height", function(){
+			switch(mainview.colorType){
+				case "Owner":
+				case "File extension":
+					return mainview.colorFct().domain().length * 20;
+					break;
+				default:
+					return mainview.colorFct().range().length * 20 + 2;
+					break;
+			}
+		});
+}
+
+function displayLegendTooltip(){
+	var mouse = d3.mouse(svgMainView.node()).map(function(d2) {
+		return parseInt(d2);
+	});
+	var legendSvg = legendTooltip.classed('hidden', false)
+        .select("svg");
+
+	var legendItems = legendSvg.selectAll(".legend")
+		.data(function() {
+			switch(mainview.colorType){
+				case "Owner":
+				case "File extension":
+					return mainview.colorFct().domain();
+					break;
+				default:
+					return mainview.colorFct().range();
+					break;
+			}
+		})
+	    .enter().append("g")
+	    	.attr("class", "legend")
+	    	.attr("transform", function(d, i) { return "translate(0," + i * 20 + ")"; });
+
+	legendItems.append("rect")
+		.attr("x", 100 - 18)
+		.attr("width", 18)
+		.attr("height", 18)
+		.style("fill", function(d) {
+			switch(mainview.colorType){
+				case "Owner":
+				case "File extension":
+					return mainview.colorFct()(d);
+					break;
+				default:
+					return d;
+					break;
+			}
+		});
+
+	legendItems.append("text")
+		.attr("x", 100 - 24)
+		.attr("y", 9)
+		.attr("dy", ".35em")
+		.style("text-anchor", "end")
+		.text(function(d) {
+			switch(mainview.colorType){
+				case "Owner":
+				case "File extension":
+					return d;
+					break;
+				case "Date":
+					return displayDateNoHour(mainview.colorFct().invertExtent(d)[1] * 1000);
+					break;
+				default:
+					return mainview.colorFct().invertExtent(d)[0];
+					break;
+			}
+		})
 }
 
 function displayMainView(root) {
