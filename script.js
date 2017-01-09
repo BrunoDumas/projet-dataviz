@@ -79,7 +79,6 @@ var pathviewHeight = 50,
 			for(var i =0;i<paths.length;i++){
 				if(paths[i].id !== "/"){//i.e. not root
 					paths[i].found = true;
-					console.log(paths[i])
 					if(paths[i]._children){ //if children are hidden: open them, otherwise: don't do anything
 						paths[i].children = paths[i]._children;
 		    			paths[i]._children = null;
@@ -293,7 +292,7 @@ var pathviewHeight = 50,
 		unCollapse: function(startingDepth){
 			return function(node){
 				if(node._children) {
-					if(node.depth - startingDepth >= mainview.maxDepth) {
+					if(node.depth - startingDepth <= mainview.maxDepth) {
 						node.children = node._children;
 						node.children.forEach(mainview.unCollapse(startingDepth));
 						node._children = null;
@@ -497,16 +496,42 @@ function processData(error, data, file_extensions){
 	initLegendToolTip();
     displayMainView(root);
     displayPathView(root);
-	console.log(root)
-	setTimeout(function(){
-		var firstCollapsedNode = root.children[3].children[0].children[0].children[0];
-		console.log(firstCollapsedNode.x + ", " + firstCollapsedNode.y + ", r= " + firstCollapsedNode.r)
+
+	function getNextUnpackedNode(n){
+		if(n.children){
+			console.log("dig in")
+			for(c in n.children){
+				var chUnpack = getNextUnpackedNode(c);
+				console.log("chUnpack = " + chUnpack)
+				if(chUnpack){
+					return chUnpack;
+				}
+			}
+		} else {
+			if(n._children){
+				return n;
+			}
+		}
+	}
+
+	function unpackNode(){
+		var nextUnpackedNode = getNextUnpackedNode(root);
+		console.log("nextUnpackedNode = " + nextUnpackedNode)
+		if(nextUnpackedNode){
+			mainview.processPack(nextUnpackedNode);
+			console.log("One more")
+			setTimeout(unpackNode, 100);
+		} else {
+			console.log("Done !")
+		}
+		/*console.log(firstCollapsedNode.x + ", " + firstCollapsedNode.y + ", r= " + firstCollapsedNode.r)
 		console.log(firstCollapsedNode)
-		mainview.processPack(firstCollapsedNode)
+		mainview.processPack(firstCollapsedNode)*/
 		displayMainView(root);
-		var firstCollapsedNode = root.children[3].children[0].children[0].children[0];
-		console.log(firstCollapsedNode.x + ", " + firstCollapsedNode.y + ", r= " + firstCollapsedNode.r)
-	}, 1)
+		//var firstCollapsedNode = root.children[3].children[0].children[0].children[0];
+		//console.log(firstCollapsedNode.x + ", " + firstCollapsedNode.y + ", r= " + firstCollapsedNode.r)
+	}
+	setTimeout(unpackNode, 100)
 }
 
 function getFileName(node){
@@ -660,14 +685,13 @@ function displayMainView(root) {
 			.attr("class", function(d) { return "node" + (!d.children ? " node--leaf" : d.depth ? "" : " node--root"); })
 			.each(function(d) { d.node = this; });
 
-	console.log(node)
 	node.append("circle")
 		.attr("id", function(d) { return "node-" + d.data.filename; })
 		.attr("cx", function(d) { return d.x; })
 		.attr("cy", function(d) { return d.y; })
 		.attr("r", function(d) { return d.r; })
 		.style("fill", function(d){ return mainview.color(d)() } )
-        .style("stroke-width", function(d){ return Math.sqrt(Math.max(5 - d.depth, 0.5)) })
+        .style("stroke-width", function(d){ return Math.sqrt(Math.max(5 - d.depth, 1)) })
 		.on("mouseover", hovered(true))
 		.on("mouseout", hovered(false))
 		.on("mousemove", displayTooltip)
