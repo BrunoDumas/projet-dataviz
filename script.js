@@ -35,29 +35,29 @@ var pathviewHeight = 50,
 		    }
 		},
 		searchTree: function(obj,search,path){
-		if(obj.data.filename === search){ //if search is found return, add the object to the path and return it
-			path.push(obj.data);
-			return path;
-		}
-		else if(obj.children || obj._children){ //if children are collapsed d3 object will have them instantiated as _children
-			var children = (obj.children) ? obj.children : obj._children;
-			for(var i=0;i<children.length;i++){
-				path.push(obj);// we assume this path is the right one
-				var found = overview.searchTree(children[i],search,path);
-				if(found){// we were right, this should return the bubbled-up path from the first if statement
-					return found;
-				}
-				else{//we were wrong, remove this parent from the path and continue iterating
-					path.pop();
+
+			if(obj.data.filename === search){ //if search is found return, add the object to the path and return it
+				path.push(obj.data);
+				return path;
+			}
+			else if(obj.children || obj._children){ //if children are collapsed d3 object will have them instantiated as _children
+				var children = (obj.children) ? obj.children : obj._children;
+				for(var i=0;i<children.length;i++){
+					path.push(obj);// we assume this path is the right one
+					var found = overview.searchTree(children[i],search,path);
+					if(found){// we were right, this should return the bubbled-up path from the first if statement
+						return found;
+					}
+					else{//we were wrong, remove this parent from the path and continue iterating
+						path.pop();
+					}
 				}
 			}
-		}
-		else{//not the right object, return false so it will continue to iterate in the loop
-			return false;
-		}
-	},
-
-	extract_select2_data: function(node,leaves,index){
+			else{//not the right object, return false so it will continue to iterate in the loop
+				return false;
+			}
+		},
+		extract_select2_data: function(node,leaves,index){
 	        if (node.children){
 	            for(var i = 0;i<node.children.length;i++){
 	                index = overview.extract_select2_data(node.children[i],leaves,index)[0];
@@ -67,7 +67,7 @@ var pathviewHeight = 50,
 	            leaves.push({id:++index,text:node.filename});
 	        }
 	        return [index,leaves];
-	},
+		},
 		collapse: function(d){
 			if(d.children) {
 		      d._children = d.children
@@ -77,16 +77,17 @@ var pathviewHeight = 50,
 		},
 		openPaths: function(paths){
 			for(var i =0;i<paths.length;i++){
-			if(paths[i].id !== "/"){//i.e. not root
-				paths[i].class = 'found';
-				if(paths[i]._children){ //if children are hidden: open them, otherwise: don't do anything
-					paths[i].children = paths[i]._children;
-	    			paths[i]._children = null;
+				if(paths[i].id !== "/"){//i.e. not root
+					paths[i].found = true;
+					console.log(paths[i])
+					if(paths[i]._children){ //if children are hidden: open them, otherwise: don't do anything
+						paths[i].children = paths[i]._children;
+		    			paths[i]._children = null;
+					}
+					overview.update(paths[i]);
 				}
-				overview.update(paths[i]);
 			}
-		}
-	},
+		},
 		update: function(source){
 			var nodes = overview.tree(overview.root).descendants(),
 				links = overview.tree(overview.root).descendants().slice(1);
@@ -108,7 +109,13 @@ var pathviewHeight = 50,
 				.on('click', click);
 
 		    nodeEnter.append("circle")
-			  	.attr('class', 'node')
+			  	.attr('class', function(d){
+					var cl = "node";
+					if(d.found || d.data.found){
+						cl += " found"
+					}
+					return "node"
+				})
 			    .attr("r", 1e-6)
 			  	.style("fill", function(d) {
 		            return d._children ? "lightsteelblue" : "#777";
@@ -130,10 +137,10 @@ var pathviewHeight = 50,
 				return "translate(" + d.y + "," + d.x + ")";
 			});
 
-				nodeUpdate.select('circle.node')
+			nodeUpdate.select('circle.node')
 				.attr('r', 10)
 				.style("fill", function(d) {
-					if(d.class === "found"){return "blue"}
+					if(d.found){return "blue"}
 					else{return d._children ? "lightsteelblue" : "#f00";}
 				})
 				.attr('cursor', 'pointer');
@@ -170,7 +177,7 @@ var pathviewHeight = 50,
 		        .duration(overview.duration)
 		        .attr('d', function(d){ return diagonal(d, d.parent) })
 			.style("stroke",function(d){
-				if(d.class==="found"){
+				if(d.found){
 					return "blue";
 				}
 			});
@@ -212,6 +219,18 @@ var pathviewHeight = 50,
 			function zoomed() {
 		  		overview.g.attr("transform", d3.event.transform);
 		  	}
+		},
+		find: function(id){
+			overview.g.selectAll("circle")
+				.attr("class", function(d){
+					d.found = false;
+					return "node";
+				});
+
+			var paths = overview.searchTree(overview.root,id,[]);
+			if(typeof(paths) !== "undefined"){
+				overview.openPaths(paths);
+			}
 		}
 	},
 	mainview = { // Bubbles/Radial view
@@ -456,10 +475,6 @@ function processData(error, data, file_extensions){
 	select2_data = overview.extract_select2_data(data,[],0)[1];
 	overview.root.children.forEach(overview.collapse);
 	overview.update(overview.root);
-	var paths = overview.searchTree(overview.root,"/media/pi",[]);
-		if(typeof(paths) !== "undefined"){
-			overview.openPaths(paths);
-		}
 
 	/* Main view (pack layout) */
 	var root = stratify(data)
@@ -683,6 +698,9 @@ function degreeOfInterest(node){
 // Adapted from : http://mbostock.github.io/d3/talk/20111116/#10
 function zoom(clickedNode, i) {
 	if(currNode.id == clickedNode.id && i) return;
+
+	overview.find(clickedNode.id);
+
 	var k = r / clickedNode.r / 2;
 	x.domain([clickedNode.x - clickedNode.r, clickedNode.x + clickedNode.r]);
 	y.domain([clickedNode.y - clickedNode.r, clickedNode.y + clickedNode.r]);
