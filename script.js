@@ -117,7 +117,7 @@ var pathviewHeight = 50,
 				})
 			    .attr("r", 1e-6)
 			  	.style("fill", function(d) {
-		            return d._children ? "lightsteelblue" : "blue";
+		            return d._children ? "#2171b5" : "lightsteelblue";
 		        });
 
 		    nodeEnter.append("text")
@@ -139,8 +139,8 @@ var pathviewHeight = 50,
 			nodeUpdate.select('circle.node')
 				.attr('r', 10)
 				.style("fill", function(d) {
-					if(d.found){return "#f00"}
-					else{return d._children ? "blue" : "lightsteelblue";}
+					if(d.found){return "#fc8d59"}
+					else{return d._children ? "#2171b5" : "lightsteelblue";}
 				})
 				.attr('cursor', 'pointer');
 
@@ -177,12 +177,12 @@ var pathviewHeight = 50,
 		        .attr('d', function(d){ return diagonal(d, d.parent) })
 			.style("stroke",function(d){
 				if(d.found){
-					return "red";
+					return "#fc8d59";
 				}
 			})
-			.style("stroke-width",function(d){
+			.style("stroke-opacity",function(d){
 				if(d.found){
-					return "3px";
+					return "0.8";
 				}
 			});
 
