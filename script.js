@@ -117,7 +117,7 @@ var pathviewHeight = 50,
 				})
 			    .attr("r", 1e-6)
 			  	.style("fill", function(d) {
-		            return d._children ? "lightsteelblue" : "#777";
+		            return d._children ? "lightsteelblue" : "blue";
 		        });
 
 		    nodeEnter.append("text")
@@ -139,8 +139,8 @@ var pathviewHeight = 50,
 			nodeUpdate.select('circle.node')
 				.attr('r', 10)
 				.style("fill", function(d) {
-					if(d.found){return "blue"}
-					else{return d._children ? "lightsteelblue" : "#f00";}
+					if(d.found){return "#f00"}
+					else{return d._children ? "blue" : "lightsteelblue";}
 				})
 				.attr('cursor', 'pointer');
 
@@ -177,7 +177,12 @@ var pathviewHeight = 50,
 		        .attr('d', function(d){ return diagonal(d, d.parent) })
 			.style("stroke",function(d){
 				if(d.found){
-					return "blue";
+					return "red";
+				}
+			})
+			.style("stroke-width",function(d){
+				if(d.found){
+					return "3px";
 				}
 			});
 
@@ -288,46 +293,6 @@ var pathviewHeight = 50,
 					}
 			    }
 			};
-		},
-		unCollapse: function(startingDepth){
-			return function(node){
-				if(node._children) {
-					if(node.depth - startingDepth <= mainview.maxDepth) {
-						node.children = node._children;
-						node.children.forEach(mainview.unCollapse(startingDepth));
-						node._children = null;
-					}
-			    }
-			};
-		},
-		processPack: function(node){
-			function shift(n, amount){
-				n.x -= amount.x;
-				n.y -= amount.y;
-				if(n.children) {
-					n.children.forEach(function(n0){shift(n0, amount)});
-				}
-			}
-
-			if(node.children) {
-				node.children.forEach(mainview.processPack);
-			} else {
-				if(node._children){
-					node.children = node._children;
-					node._children = null;
-
-					node.children.forEach(mainview.unCollapse(node.depth));
-
-					var prevPos = {r: node.r, x: node.x, y: node.y};
-					var packThis = d3.pack()
-					    .size([node.r * 2, node.r * 2])
-					    .padding(3);
-					packThis(node);
-					node.r = prevPos.r;
-					var prevPos = {x: node.x - prevPos.x, y: node.y - prevPos.y};
-					shift(node, prevPos);
-				}
-			}
 		},
 		maxDepth: 4,
         viewFiles: true
@@ -497,41 +462,27 @@ function processData(error, data, file_extensions){
     displayMainView(root);
     displayPathView(root);
 
-	function getNextUnpackedNode(n){
-		if(n.children){
-			console.log("dig in")
-			for(c in n.children){
-				var chUnpack = getNextUnpackedNode(c);
-				console.log("chUnpack = " + chUnpack)
-				if(chUnpack){
-					return chUnpack;
-				}
-			}
-		} else {
-			if(n._children){
-				return n;
-			}
+	var worker = new Worker("worker.js");
+
+	worker.postMessage({
+		root: root
+	});
+
+	worker.onmessage = function(event) {
+		switch (event.data.type) {
+			case "unpacked": return unpacked(event.data);
+	    	case "end": return ended(event.data);
 		}
+	};
+
+	function unpacked(data){
+		displayMainView(data.root);
+		console.log("unpacked")
 	}
 
-	function unpackNode(){
-		var nextUnpackedNode = getNextUnpackedNode(root);
-		console.log("nextUnpackedNode = " + nextUnpackedNode)
-		if(nextUnpackedNode){
-			mainview.processPack(nextUnpackedNode);
-			console.log("One more")
-			setTimeout(unpackNode, 100);
-		} else {
-			console.log("Done !")
-		}
-		/*console.log(firstCollapsedNode.x + ", " + firstCollapsedNode.y + ", r= " + firstCollapsedNode.r)
-		console.log(firstCollapsedNode)
-		mainview.processPack(firstCollapsedNode)*/
-		displayMainView(root);
-		//var firstCollapsedNode = root.children[3].children[0].children[0].children[0];
-		//console.log(firstCollapsedNode.x + ", " + firstCollapsedNode.y + ", r= " + firstCollapsedNode.r)
+	function ended() {
+		worker.terminate();
 	}
-	setTimeout(unpackNode, 100)
 }
 
 function getFileName(node){
