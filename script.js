@@ -241,11 +241,11 @@ var pathviewHeight = 50,
 		width: svgMainView.attr("width") - margin.left - margin.right,
 		height: svgMainView.attr("height") - margin.top - margin.bottom,
 		g: svgMainView.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")"),
-        colorTypes: ["Owner", "File extension", "Depth", "Date"],
-        colorType: "Owner",
+        colorTypes: ["Depth", "Owner", "File extension", "Date"],
+        colorType: "Depth",
         colorFiletype: d3.scaleOrdinal(d3.schemeCategory20),
         colorOwner: d3.scaleOrdinal(d3.schemeCategory10),
-        colorDepth: d3.scaleQuantile().range(['#ffffe5','#d9f0a3','#78c679','#238443','#004529']),
+        colorDepth: d3.scaleQuantile().range(['#ffffcc','#d9f0a3','#addd8e','#78c679','#31a354','#006837']),
         colorDate: d3.scaleQuantile().range(['#fee0d2','#fcbba1','#fc9272','#fb6a4a','#ef3b2c','#cb181d','#a50f15']),
 		colorFct: function() {
 			switch(mainview.colorType){
@@ -276,7 +276,7 @@ var pathviewHeight = 50,
                         return mainview.colorDate(node.data.timestamp);
                         break;
                     default:
-                        return mainview.colorDepth(node.depth - (currNode?currNode.depth:1) + 1);
+                        return mainview.colorDepth(node.depth - (currNode?currNode.depth:1) + 2);
                         break;
                 }
             }
@@ -295,6 +295,7 @@ var pathviewHeight = 50,
 			};
 		},
 		maxDepth: 4,
+		root: undefined,
         viewFiles: true
 	},
 	r = Math.min(mainview.height, mainview.width),
@@ -441,11 +442,11 @@ function processData(error, data, file_extensions){
 	overview.update(overview.root);
 
 	/* Main view (pack layout) */
-	var root = stratify(data)
+	mainview.root = stratify(data)
 		.sum(function(d) { return d.size;})
 		.sort(function(a, b) { return b.size - a.size; });
-	root.children.forEach(mainview.collapse(0));
-	pack(root);
+	mainview.root.children.forEach(mainview.collapse(0));
+	pack(mainview.root);
 
 
 	// downloadVariableAsFile(root);
@@ -456,33 +457,11 @@ function processData(error, data, file_extensions){
 	mainview.colorDepth.domain([0, 5]);
 	mainview.colorDate.domain([minDate, maxDate]);
 
-    currNode = root;
+    currNode = mainview.root;
 
 	initLegendToolTip();
-    displayMainView(root);
-    displayPathView(root);
-
-	var worker = new Worker("worker.js");
-
-	worker.postMessage({
-		root: root
-	});
-
-	worker.onmessage = function(event) {
-		switch (event.data.type) {
-			case "unpacked": return unpacked(event.data);
-	    	case "end": return ended(event.data);
-		}
-	};
-
-	function unpacked(data){
-		displayMainView(data.root);
-		console.log("unpacked")
-	}
-
-	function ended() {
-		worker.terminate();
-	}
+    displayMainView(mainview.root);
+    displayPathView(mainview.root);
 }
 
 function getFileName(node){
@@ -612,7 +591,7 @@ function displayLegendTooltip(){
 		.attr("y", 9)
 		.attr("dy", ".35em")
 		.style("text-anchor", "end")
-		.text(function(d) {
+		.text(function(d, i) {
 			switch(mainview.colorType){
 				case "Owner":
 				case "File extension":
@@ -622,7 +601,7 @@ function displayLegendTooltip(){
 					return displayDateNoHour(mainview.colorFct().invertExtent(d)[1] * 1000);
 					break;
 				default:
-					return mainview.colorFct().invertExtent(d)[0];
+					return i;
 					break;
 			}
 		})
@@ -682,11 +661,76 @@ function zoom(clickedNode, i) {
 
 
     currNode = clickedNode;
-    mainview.g.selectAll("circle")
-        .attr("class", function(d){ return (degreeOfInterest(d) >= 5) ? "hidden" : "" });
 
-	var t = mainview.g.transition()
-		.duration(0);
+	function processPack(node){
+	    function shift(n, amount){
+	        n.x -= amount.x;
+	        n.y -= amount.y;
+	        if(n.children) {
+	            n.children.forEach(function(n0){shift(n0, amount)});
+	        }
+	    }
+
+	    if(!node.children) {
+	        if(node._children){
+	            node.children = node._children;
+	            node._children = null;
+
+	            var prevPos = {r: node.r, x: node.x, y: node.y};
+	            var packThis = d3.pack()
+	                .size([node.r * 2, node.r * 2])
+	                .padding(3);
+	            packThis(node);
+	            node.r = prevPos.r;
+	            var prevPos = {x: node.x - prevPos.x, y: node.y - prevPos.y};
+	            shift(node, prevPos);
+	        }
+	    }
+	}
+
+	function unCollapse(startingDepth){
+	    return function(node){
+	        if(node._children) {
+	            if(node.depth - startingDepth <= 1) {
+	                node.children = node._children;
+	                //node.children.forEach(unCollapse(startingDepth));
+	                node._children = null;
+	            }
+	        }
+	    };
+	}
+
+	processPack(clickedNode);
+
+	var allNodes = mainview.g
+		.selectAll("g").data(mainview.root.descendants());
+	var nodeEnter = allNodes.enter().append("g");
+
+	nodeEnter
+		.attr("class", function(d) { return "node" + (!d.children ? " node--leaf" : d.depth ? "" : " node--root"); })
+		.each(function(d) { d.node = this; });
+
+	nodeEnter.append("circle")
+		.attr("id", function(d) { return "node-" + d.data.filename; })
+		.attr("cx", function(d) { return d.x; })
+		.attr("cy", function(d) { return d.y; })
+		.attr("r", function(d) { return d.r; })
+		.style("fill", function(d){ return mainview.color(d)() } )
+		.style("stroke-width", function(d){ return Math.sqrt(Math.max(5 - d.depth, 1)) })
+		.on("mouseover", hovered(true))
+		.on("mouseout", hovered(false))
+		.on("mousemove", displayTooltip)
+		.on("click", function(d) { return zoom(node == d ? node : d); });
+
+	var nodeUpdate = nodeEnter.merge(allNodes);
+
+
+
+    mainview.g.selectAll("circle")
+        .attr("class", function(d){ return (degreeOfInterest(d) >= 6) ? "hidden" : "" });
+
+	var t = nodeUpdate.transition()
+		.duration(500);
 
 	t.selectAll("circle")
 		.attr("cx", function(d) { return x(d.x); })
@@ -698,6 +742,10 @@ function zoom(clickedNode, i) {
 		.attr("x", function(d) { return x(d.x); })
 		.attr("y", function(d) { return y(d.y); })
 		.style("opacity", function(d) { return k * d.r > 20 ? 1 : 0; });*/
+
+
+	allNodes.exit().remove();
+
 
 	node = clickedNode;
 	d3.event && d3.event.stopPropagation();
