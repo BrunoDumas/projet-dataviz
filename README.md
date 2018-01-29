@@ -21,3 +21,6 @@ Bruno Dumas
   ```
 3. Visit the URL
 [localhost:8080](localhost:8080)
+
+## Live demo
+[https://github.com/BrunoDumas/projet-dataviz](https://github.com/BrunoDumas/projet-dataviz)
