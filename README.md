@@ -23,4 +23,4 @@ Bruno Dumas
 [localhost:8080](localhost:8080)
 
 ## Live demo
-[https://github.com/BrunoDumas/projet-dataviz](https://github.com/BrunoDumas/projet-dataviz)
+[https://dumaspoirier-dv2017.github.io/](https://dumaspoirier-dv2017.github.io/)
